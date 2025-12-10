@@ -1,0 +1,130 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String?
+  email     String   @unique
+  password  String
+  role      Role     @default(BUYER)
+  seller    Seller?
+  orders    Order[]
+  messagesSent Message[] @relation("SentMessages")
+  messagesReceived Message[] @relation("ReceivedMessages")
+  createdAt DateTime @default(now())
+}
+
+enum Role {
+  BUYER
+  SELLER
+  ADMIN
+}
+
+model Seller {
+  id          Int      @id @default(autoincrement())
+  userId      Int      @unique
+  storeName   String
+  storeDetails String?
+  user        User     @relation(fields: [userId], references: [id])
+  products    Product[]
+}
+
+model Category {
+  id       Int      @id @default(autoincrement())
+  name     String   @unique
+  products Product[]
+}
+
+model Product {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String?
+  price       Int      // stored as cents
+  stock       Int
+  images      String[] // URLs
+  categoryId  Int
+  sellerId    Int
+  category    Category @relation(fields: [categoryId], references: [id])
+  seller      Seller   @relation(fields: [sellerId], references: [id])
+  orderItems  OrderItem[]
+  imageScore  ImageScore?
+}
+
+model Order {
+  id            Int      @id @default(autoincrement())
+  buyerId       Int
+  totalAmount   Int
+  status        String
+  paymentMethod String   // "visa" | "mobilemoney"
+  createdAt     DateTime @default(now())
+  buyer         User     @relation(fields: [buyerId], references: [id])
+  items         OrderItem[]
+  payment       Payment?
+  fraudAlert    FraudAlert?
+}
+
+model OrderItem {
+  id        Int   @id @default(autoincrement())
+  orderId   Int
+  productId Int
+  quantity  Int
+  price     Int   // price at purchase time
+  order     Order @relation(fields: [orderId], references: [id])
+  product   Product @relation(fields: [productId], references: [id])
+}
+
+model Payment {
+  id        Int    @id @default(autoincrement())
+  orderId   Int    @unique
+  amount    Int
+  method    String // "visa" or "mobilemoney"
+  status    String // succeeded, failed, pending
+  createdAt DateTime @default(now())
+  order     Order   @relation(fields: [orderId], references: [id])
+}
+
+model Message {
+  id            Int      @id @default(autoincrement())
+  conversationId String   // e.g., "buyerId-sellerId"
+  senderId      Int
+  receiverId    Int
+  content       String
+  timestamp     DateTime @default(now())
+  sender        User @relation("SentMessages", fields: [senderId], references: [id])
+  receiver      User @relation("ReceivedMessages", fields: [receiverId], references: [id])
+}
+
+model Recommendation {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  productId Int
+  score     Float
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+  product   Product  @relation(fields: [productId], references: [id])
+}
+
+model ImageScore {
+  id        Int      @id @default(autoincrement())
+  productId Int
+  score     Float
+  details   String?
+  createdAt DateTime @default(now())
+  product   Product  @relation(fields: [productId], references: [id])
+}
+
+model FraudAlert {
+  id        Int      @id @default(autoincrement())
+  orderId   Int
+  reason    String
+  severity  Int
+  resolved  Boolean @default(false)
+  createdAt DateTime @default(now())
+  order     Order   @relation(fields: [orderId], references: [id])
+}

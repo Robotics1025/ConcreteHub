@@ -1,0 +1,266 @@
+# Materials Selling & Buying System – Full‑stack Next.js Documentation
+
+## Overview
+
+A single Next.js project provides both the **frontend UI** and **backend API routes** for a marketplace where buyers purchase building materials from sellers. The system includes:
+
+- **Visa payments** via **Stripe**
+- **Mobile‑Money** payments via **Flutterwave** (or similar provider)
+- **Real‑time in‑app chat** using **Socket.IO**
+- A **WhatsApp contact button** for support
+- Role‑based access (Buyer, Seller, Admin) powered by **NextAuth**
+
+---
+
+## 1. Project Structure
+
+```
+/project-root
+├─ /pages
+│   ├─ index.js                     # Home / product catalog
+│   ├─ /buyer
+│   │   ├─ index.js                 # Buyer dashboard
+│   │   ├─ cart.js                  # Shopping cart UI
+│   │   └─ orders.js                # Order history
+│   ├─ /seller
+│   │   ├─ index.js                 # Seller dashboard
+│   │   ├─ products.js              # Manage products
+│   │   └─ orders.js                # View incoming orders
+│   ├─ /admin
+│   │   ├─ index.js                 # Admin dashboard
+│   │   ├─ users.js                 # Approve/reject sellers
+│   │   └─ categories.js            # Manage categories
+│   ├─ /auth
+│   │   ├─ login.js
+│   │   └─ signup.js
+│   ├─ /chat
+│   │   └─ [conversationId].js      # Real‑time chat UI
+│   ├─ /support
+│   │   └─ whatsapp.js              # WhatsApp contact page
+│   └─ api
+│       ├─ auth.js                  # NextAuth handlers
+│       ├─ products.js              # CRUD for products
+│       ├─ cart.js                  # Get / update cart
+│       ├─ orders.js                # Create & fetch orders
+│       ├─ payments
+│       │   └─ [method].js          # Visa (Stripe) & Mobile‑Money (Flutterwave)
+│       ├─ messages.js              # Socket.IO endpoint for chat
+│       ├─ admin
+│       │   ├─ users.js              # User & seller management
+│       │   └─ categories.js         # Category CRUD
+│       └─ ...
+├─ /components
+│   ├─ PaymentMethodSelector.tsx    # Choose Visa or Mobile‑Money
+│   ├─ ChatBox.tsx                  # Socket.IO client UI
+│   ├─ WhatsAppButton.tsx           # Static support button
+│   └─ …
+├─ /lib
+│   ├─ prisma.js                    # Prisma client instance
+│   └─ auth.js                      # Helper functions for auth
+├─ /styles                         # Tailwind CSS (or vanilla CSS) files
+├─ prisma
+│   └─ schema.prisma                # Database schema (PostgreSQL)
+├─ next.config.js
+└─ package.json
+```
+
+---
+
+## 2. Database Schema (Prisma)
+
+```prisma
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String?
+  email     String   @unique
+  password  String
+  role      Role     @default(BUYER) // BUYER, SELLER, ADMIN
+  seller    Seller?
+  orders    Order[]
+  messages  Message[] @relation("SentMessages")
+  createdAt DateTime @default(now())
+}
+
+enum Role {
+  BUYER
+  SELLER
+  ADMIN
+}
+
+model Seller {
+  id          Int    @id @default(autoincrement())
+  userId      Int    @unique
+  storeName   String
+  storeDetails String?
+  user        User   @relation(fields: [userId], references: [id])
+  products    Product[]
+}
+
+model Category {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+  products Product[]
+}
+
+model Product {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String?
+  price       Int      // stored as cents
+  stock       Int
+  images      String[] // URLs
+  categoryId  Int
+  sellerId    Int
+  category    Category @relation(fields: [categoryId], references: [id])
+  seller      Seller   @relation(fields: [sellerId], references: [id])
+  orderItems  OrderItem[]
+}
+
+model Order {
+  id            Int      @id @default(autoincrement())
+  buyerId       Int
+  totalAmount   Int      // cents
+  status        String   // e.g., pending, paid, shipped
+  paymentMethod String   // "visa" | "mobilemoney"
+  createdAt     DateTime @default(now())
+  buyer         User     @relation(fields: [buyerId], references: [id])
+  items         OrderItem[]
+  payment       Payment?
+}
+
+model OrderItem {
+  id        Int   @id @default(autoincrement())
+  orderId   Int
+  productId Int
+  quantity  Int
+  price     Int   // price at purchase time (cents)
+  order     Order @relation(fields: [orderId], references: [id])
+  product   Product @relation(fields: [productId], references: [id])
+}
+
+model Payment {
+  id            Int    @id @default(autoincrement())
+  orderId       Int    @unique
+  amount        Int    // cents
+  method        String // "visa" or "mobilemoney"
+  status        String // succeeded, failed, pending
+  createdAt     DateTime @default(now())
+  order         Order   @relation(fields: [orderId], references: [id])
+}
+
+model Message {
+  id            Int      @id @default(autoincrement())
+  conversationId String   // e.g., "buyerId-sellerId"
+  senderId      Int
+  receiverId    Int
+  content       String
+  timestamp     DateTime @default(now())
+  sender        User @relation("SentMessages", fields: [senderId], references: [id])
+  receiver      User @relation("ReceivedMessages", fields: [receiverId], references: [id])
+}
+```
+
+---
+
+## 3. API Routes Overview
+
+| Route | Method(s) | Purpose | Access |
+|-------|-----------|---------|--------|
+| `/api/auth` | POST (login, signup) | NextAuth session handling | Public (signup) / Authenticated (login) |
+| `/api/products` | GET, POST, PUT, DELETE | CRUD for products | Buyers (GET), Sellers (POST/PUT/DELETE) |
+| `/api/cart` | GET, POST, DELETE | Manage cart items | Authenticated buyers |
+| `/api/orders` | POST, GET | Create order, list buyer/seller orders | Authenticated buyers & sellers |
+| `/api/payments/[method]` | POST | Process payment – `method=visa` (Stripe) or `method=mobilemoney` (Flutterwave) | Authenticated buyers |
+| `/api/messages` | Socket.IO (upgrade) | Real‑time chat endpoint | Authenticated buyers & sellers |
+| `/api/admin/users` | GET, PATCH, DELETE | Approve/reject sellers, manage users | Admin only |
+| `/api/admin/categories` | GET, POST, PUT, DELETE | Category management | Admin only |
+
+---
+
+## 4. Payment Integration Details
+
+### 4.1 Stripe (Visa)
+
+1. Install: `npm i stripe @stripe/react-stripe-js @stripe/stripe-js`.
+2. Create **PaymentIntent** in `/api/payments/visa.js` and return `client_secret`.
+3. Front‑end uses `useStripe` & `useElements` to confirm payment.
+4. Store `paymentMethod = "visa"` in `Order`.
+
+### 4.2 Flutterwave (Mobile‑Money)
+
+1. Install: `npm i @flutterwave/node-v3` (or provider SDK).
+2. `/api/payments/mobilemoney.js` builds a charge payload with `payment_options: "mobilemoney"` and returns the redirect URL.
+3. After user completes payment, webhook updates `Payment` record and order status.
+4. Store `paymentMethod = "mobilemoney"` in `Order`.
+
+---
+
+## 5. Real‑time Messaging (Socket.IO)
+
+1. **Server side** – `pages/api/messages.js` creates a Socket.IO server (runs on the same Next.js server).
+2. **Client side** – `components/ChatBox.tsx` connects with `socket.io-client`, joins a room identified by `conversationId` (`buyerId-sellerId`).
+3. Messages are persisted via Prisma `Message` model; on connection the last N messages are fetched via a normal GET request.
+4. Supports typing indicators and read receipts (optional extensions).
+
+---
+
+## 6. WhatsApp Support Button
+
+```tsx
+// components/WhatsAppButton.tsx
+export const WhatsAppButton = () => {
+  const phone = "1234567890"; // company support number
+  const prefilled = encodeURIComponent("Hello, I need assistance with my order.");
+  const href = `https://wa.me/${phone}?text=${prefilled}`;
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer" className="whatsapp-btn">
+      <img src="/icons/whatsapp.svg" alt="WhatsApp" /> Contact us on WhatsApp
+    </a>
+  );
+};
+```
+
+The button can be placed in the site footer, product pages, or a dedicated `/support/whatsapp` page
+---
+
+## 7. Authentication & Authorization (NextAuth)
+
+- Credentials provider for email/password.
+
+- Optional OAuth (Google, GitHub) – add to `providers` array.
+- Session callback adds `role` claim.
+- API routes guard with `getSession` and check `session.user.role`.
+
+---
+
+## 8. Development Workflow
+
+1. **Clone repo** → `npm install`.
+2. **Set env vars** in `.env.local` (Stripe keys, Flutterwave keys, NextAuth secret, DB URL).
+3. **Run migrations**: `npx prisma migrate dev --name init`.
+4. **Start dev server**: `npm run dev`.
+5. **Test payment flows** using Stripe test cards and Flutterwave sandbox credentials.
+6. **Run Socket.IO client** – open two browser windows (buyer & seller) and verify real‑time chat.
+
+---
+
+## 9. Verification Checklist
+
+- [ ] All pages listed in the folder structure exist.
+- [ ] Prisma schema matches the models above and migrations are applied.
+- [ ] API routes return correct data and enforce role‑based access.
+- [ ] Stripe payment flow creates a PaymentIntent and updates order status.
+- [ ] Flutterwave flow redirects correctly and webhook updates payment.
+- [ ] Socket.IO server accepts connections, broadcasts messages, and persists them.
+- [ ] WhatsApp button opens the correct URL with pre‑filled text.
+- [ ] End‑to‑end test: buyer purchases a product, pays via Visa, seller receives order, chat works, admin can approve seller.
+
+---
+
+## 10. Diagram
+
+![Materials Marketplace Flow (Updated)](/5638f5f2-6160-45dd-9391-baeb82582496/flow_diagram_1765365031089.png)
+
+---
+
+**End of Documentation**
