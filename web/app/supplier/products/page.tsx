@@ -152,6 +152,7 @@ export default function SupplierProductsPage() {
   const [viewMode, setViewMode] = useState<"table" | "grid">("table");
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [dialogMode, setDialogMode] = useState<"view" | "edit">("view");
 
   const summaryCards: SummaryCard[] = useMemo(() => {
     const total = products.length;
@@ -412,13 +413,30 @@ export default function SupplierProductsPage() {
                           />
                         </TableCell>
                         <TableCell align="right">
-                          <Button
-                            variant="text"
-                            onClick={() => setSelectedProduct(product)}
-                            sx={{ fontWeight: 700, textTransform: "none" }}
-                          >
-                            View
-                          </Button>
+                          <Stack direction="row" spacing={1} justifyContent="flex-end">
+                            <Button
+                              variant="text"
+                              onClick={() => {
+                                setSelectedProduct(product);
+                                setEditingProduct(product);
+                                setDialogMode("view");
+                              }}
+                              sx={{ fontWeight: 700, textTransform: "none" }}
+                            >
+                              View
+                            </Button>
+                            <Button
+                              variant="text"
+                              onClick={() => {
+                                setSelectedProduct(product);
+                                setEditingProduct(product);
+                                setDialogMode("edit");
+                              }}
+                              sx={{ fontWeight: 700, textTransform: "none" }}
+                            >
+                              Edit
+                            </Button>
+                          </Stack>
                         </TableCell>
                       </TableRow>
                     );
@@ -493,13 +511,22 @@ export default function SupplierProductsPage() {
                               }}
                             />
                             <Box sx={{ display: "flex", justifyContent: "flex-end", pt: 0.5 }}>
-                              <Button
-                                variant="text"
-                                onClick={() => setSelectedProduct(product)}
-                                sx={{ fontWeight: 700, textTransform: "none", p: 0, minWidth: 0 }}
-                              >
-                                View
-                              </Button>
+                              <Stack direction="row" spacing={1}>
+                                <Button
+                                  variant="text"
+                                  onClick={() => { setSelectedProduct(product); setEditingProduct(product); setDialogMode("view"); }}
+                                  sx={{ fontWeight: 700, textTransform: "none", p: 0, minWidth: 0 }}
+                                >
+                                  View
+                                </Button>
+                                <Button
+                                  variant="text"
+                                  onClick={() => { setSelectedProduct(product); setEditingProduct(product); setDialogMode("edit"); }}
+                                  sx={{ fontWeight: 700, textTransform: "none", p: 0, minWidth: 0 }}
+                                >
+                                  Edit
+                                </Button>
+                              </Stack>
                             </Box>
                           </Stack>
                         </CardContent>
@@ -515,61 +542,61 @@ export default function SupplierProductsPage() {
 
       <Dialog
         open={Boolean(selectedProduct)}
-        onClose={() => setSelectedProduct(null)}
+        onClose={() => { setSelectedProduct(null); setEditingProduct(null); setDialogMode("view"); }}
         maxWidth="md"
         fullWidth
       >
-        {selectedProduct && (
+        {selectedProduct && editingProduct && (
           <>
-            <DialogTitle sx={{ fontWeight: 800 }}>{selectedProduct.name}</DialogTitle>
+            <DialogTitle sx={{ fontWeight: 800, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 2 }}>
+              <Typography component="span" sx={{ fontWeight: 800 }}>{editingProduct.name}</Typography>
+              <Chip
+                label={editingProduct.status === "active" ? "Active" : "Inactive"}
+                sx={{
+                  bgcolor: editingProduct.status === "active" ? alpha("#0F9B4C", 0.12) : alpha("#B42318", 0.12),
+                  color: editingProduct.status === "active" ? "#0F9B4C" : "#B42318",
+                  fontWeight: 700,
+                  borderRadius: 999,
+                  px: 1.5,
+                }}
+              />
+            </DialogTitle>
             <DialogContent dividers>
-              <Stack spacing={2}>
-                <Box
-                  component="img"
-                  src={selectedProduct.image}
-                  alt={selectedProduct.name}
-                  sx={{ width: "100%", borderRadius: 2, objectFit: "cover", border: "1px solid rgba(145, 158, 171, 0.12)" }}
-                />
-                <Typography color="text.secondary" sx={{ lineHeight: 1.6 }}>
-                  {selectedProduct.description}
-                </Typography>
-                <Stack direction="row" justifyContent="space-between">
-                  <Typography color="text.secondary">Product ID</Typography>
-                  <Typography fontWeight={700}>{selectedProduct.id}</Typography>
-                </Stack>
-                <Stack direction="row" justifyContent="space-between">
-                  <Typography color="text.secondary">Category</Typography>
-                  <Typography fontWeight={700}>{selectedProduct.category}</Typography>
-                </Stack>
-                <Stack direction="row" justifyContent="space-between">
-                  <Typography color="text.secondary">Dimensions</Typography>
-                  <Typography fontWeight={700}>{selectedProduct.dimensions}</Typography>
-                </Stack>
-                <Stack direction="row" justifyContent="space-between">
-                  <Typography color="text.secondary">Pieces / bundle</Typography>
-                  <Typography fontWeight={700}>{selectedProduct.piecesPerBundle}</Typography>
-                </Stack>
-                <Stack direction="row" justifyContent="space-between">
-                  <Typography color="text.secondary">Price</Typography>
-                  <Typography fontWeight={800}>${selectedProduct.price.toLocaleString()}</Typography>
-                </Stack>
-                <Stack direction="row" justifyContent="space-between">
-                  <Typography color="text.secondary">Stock</Typography>
-                  <Typography fontWeight={700}>{selectedProduct.stock === 0 ? "Out of stock" : selectedProduct.stock}</Typography>
-                </Stack>
-                <Stack direction="row" justifyContent="space-between">
-                  <Typography color="text.secondary">Status</Typography>
-                  <Chip
-                    label={selectedProduct.status === "active" ? "Active" : "Inactive"}
-                    sx={{
-                      bgcolor: selectedProduct.status === "active" ? alpha("#0F9B4C", 0.12) : alpha("#B42318", 0.12),
-                      color: selectedProduct.status === "active" ? "#0F9B4C" : "#B42318",
-                      fontWeight: 700,
-                      borderRadius: 999,
-                      px: 1,
-                    }}
+              {dialogMode === "view" ? (
+                <Stack spacing={2.5}>
+                  <Box
+                    component="img"
+                    src={selectedProduct.image}
+                    alt={selectedProduct.name}
+                    sx={{ width: "100%", borderRadius: 2, objectFit: "cover", border: "1px solid rgba(145, 158, 171, 0.12)" }}
                   />
-                </Stack>
+                  <Typography color="text.secondary" sx={{ lineHeight: 1.6 }}>
+                    {selectedProduct.description}
+                  </Typography>
+                  <Stack direction="row" justifyContent="space-between">
+                    <Typography color="text.secondary">Product ID</Typography>
+                    <Typography fontWeight={700}>{selectedProduct.id}</Typography>
+                  </Stack>
+                  <Stack direction="row" justifyContent="space-between">
+                    <Typography color="text.secondary">Category</Typography>
+                    <Typography fontWeight={700}>{selectedProduct.category}</Typography>
+                  </Stack>
+                  <Stack direction="row" justifyContent="space-between">
+                    <Typography color="text.secondary">Dimensions</Typography>
+                    <Typography fontWeight={700}>{selectedProduct.dimensions}</Typography>
+                  </Stack>
+                  <Stack direction="row" justifyContent="space-between">
+                    <Typography color="text.secondary">Pieces / bundle</Typography>
+                    <Typography fontWeight={700}>{selectedProduct.piecesPerBundle}</Typography>
+                  </Stack>
+                  <Stack direction="row" justifyContent="space-between">
+                    <Typography color="text.secondary">Price</Typography>
+                    <Typography fontWeight={800}>${selectedProduct.price.toLocaleString()}</Typography>
+                  </Stack>
+                  <Stack direction="row" justifyContent="space-between">
+                    <Typography color="text.secondary">Stock</Typography>
+                    <Typography fontWeight={700}>{selectedProduct.stock === 0 ? "Out of stock" : selectedProduct.stock}</Typography>
+                  </Stack>
                   {selectedProduct.images?.length ? (
                     <Box>
                       <Typography sx={{ fontWeight: 700, mb: 1 }}>Related images</Typography>
@@ -594,10 +621,146 @@ export default function SupplierProductsPage() {
                       </Grid>
                     </Box>
                   ) : null}
-              </Stack>
+                </Stack>
+              ) : (
+                <Grid container spacing={3}>
+                  <Grid item xs={12} md={6}>
+                    <Stack spacing={2}>
+                      <Box
+                        component="img"
+                        src={editingProduct.image}
+                        alt={editingProduct.name}
+                        sx={{ width: "100%", borderRadius: 2, objectFit: "cover", border: "1px solid rgba(145, 158, 171, 0.12)" }}
+                      />
+                      <TextField
+                        label="Primary image URL"
+                        fullWidth
+                        size="small"
+                        value={editingProduct.image}
+                        onChange={(e) => setEditingProduct({ ...editingProduct, image: e.target.value })}
+                      />
+                      <TextField
+                        label="Name"
+                        fullWidth
+                        size="small"
+                        value={editingProduct.name}
+                        onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })}
+                      />
+                      <TextField
+                        label="Description"
+                        fullWidth
+                        multiline
+                        minRows={3}
+                        value={editingProduct.description}
+                        onChange={(e) => setEditingProduct({ ...editingProduct, description: e.target.value })}
+                      />
+                    </Stack>
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <Stack spacing={2}>
+                      <TextField
+                        label="Product ID"
+                        fullWidth
+                        size="small"
+                        value={editingProduct.id}
+                        onChange={(e) => setEditingProduct({ ...editingProduct, id: e.target.value })}
+                      />
+                      <TextField
+                        label="Category"
+                        fullWidth
+                        size="small"
+                        value={editingProduct.category}
+                        onChange={(e) => setEditingProduct({ ...editingProduct, category: e.target.value })}
+                      />
+                      <TextField
+                        label="Dimensions"
+                        fullWidth
+                        size="small"
+                        value={editingProduct.dimensions}
+                        onChange={(e) => setEditingProduct({ ...editingProduct, dimensions: e.target.value })}
+                      />
+                      <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+                        <TextField
+                          label="Pieces / bundle"
+                          fullWidth
+                          size="small"
+                          type="number"
+                          value={editingProduct.piecesPerBundle}
+                          onChange={(e) => setEditingProduct({ ...editingProduct, piecesPerBundle: Number(e.target.value) || 0 })}
+                        />
+                        <TextField
+                          label="Price"
+                          fullWidth
+                          size="small"
+                          type="number"
+                          value={editingProduct.price}
+                          onChange={(e) => setEditingProduct({ ...editingProduct, price: Number(e.target.value) || 0 })}
+                          InputProps={{ startAdornment: <Typography sx={{ mr: 1, fontWeight: 700 }}>$</Typography> }}
+                        />
+                      </Stack>
+                      <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+                        <TextField
+                          label="Stock"
+                          fullWidth
+                          size="small"
+                          type="number"
+                          value={editingProduct.stock}
+                          onChange={(e) => setEditingProduct({ ...editingProduct, stock: Number(e.target.value) || 0 })}
+                        />
+                        <TextField
+                          label="Low stock threshold"
+                          fullWidth
+                          size="small"
+                          type="number"
+                          value={editingProduct.lowStockThreshold}
+                          onChange={(e) => setEditingProduct({ ...editingProduct, lowStockThreshold: Number(e.target.value) || 0 })}
+                        />
+                      </Stack>
+                      <Select
+                        value={editingProduct.status}
+                        onChange={(e) => setEditingProduct({ ...editingProduct, status: e.target.value as ProductStatus })}
+                        size="small"
+                        fullWidth
+                      >
+                        <MenuItem value="active">Active</MenuItem>
+                        <MenuItem value="inactive">Inactive</MenuItem>
+                      </Select>
+                    </Stack>
+                  </Grid>
+                </Grid>
+              )}
             </DialogContent>
             <DialogActions>
-              <Button onClick={() => setSelectedProduct(null)}>Close</Button>
+              <Button onClick={() => { setSelectedProduct(null); setEditingProduct(null); setDialogMode("view"); }}>Close</Button>
+              {dialogMode === "view" ? (
+                <Button onClick={() => setDialogMode("edit")} sx={{ fontWeight: 700 }}>Edit</Button>
+              ) : (
+                <>
+                  <Button
+                    onClick={() => {
+                      setDialogMode("view");
+                      if (selectedProduct) {
+                        setEditingProduct(selectedProduct);
+                      }
+                    }}
+                  >
+                    Cancel edit
+                  </Button>
+                  <Button
+                    variant="contained"
+                    onClick={() => {
+                      if (!editingProduct || !selectedProduct) return;
+                      setProducts((prev) => prev.map((p) => (p.id === selectedProduct.id ? { ...editingProduct } : p)));
+                      setSelectedProduct({ ...editingProduct });
+                      setEditingProduct({ ...editingProduct });
+                      setDialogMode("view");
+                    }}
+                    sx={{ fontWeight: 700 }}
+                  >
+                    Save changes
+                  </Button>
+                </>
+              )}
             </DialogActions>
           </>
         )}
